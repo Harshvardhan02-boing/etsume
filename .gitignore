@@ -1,0 +1,31 @@
+# Build files
+.gradle
+.kotlin
+build
+
+# APK exports (large binaries, never commit)
+apk-exports/
+
+# Internal design / planning docs
+docs/
+
+# IDE files
+*.iml
+.idea/*
+!.idea/icon.png
+/captures
+
+# Configuration files
+local.properties
+keystore.properties
+
+# Local scratch artifacts
+.tmp_*
+build*.log
+current-device.png
+
+# Duplicate project subfolder
+etsume/
+
+# macOS specific files
+.DS_Store
