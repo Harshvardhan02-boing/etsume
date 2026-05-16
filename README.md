@@ -2,7 +2,9 @@
 
 # Etsume
 
-**A manga reader and anime player for Android.**
+**An open-source manga reader and anime player for Android.**
+
+An independent, privacy-focused alternative to Tachiyomi and Aniyomi — rebuilt from the ground up with a premium experience in mind.
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Build](https://github.com/harshtries-code/etsume/actions/workflows/build_push.yml/badge.svg)](https://github.com/harshtries-code/etsume/actions/workflows/build_push.yml)
@@ -14,61 +16,47 @@
 
 ## What is Etsume?
 
-Etsume is an open-source Android application for reading manga and watching anime from extension-based sources you configure yourself.
+Etsume is an open-source Android app for reading manga and watching anime from community extension sources you configure yourself. No ads, no bundled content, no tracking.
 
-It is built on a **Mihon / Aniyomi** derived base and is currently undergoing a full product, branding, and UX rewrite to become its own independent app.
+It is built on a **Mihon / Aniyomi** derived base and is undergoing a full product and UX rewrite to become its own independent application with a distinct, premium design language.
 
-> ⚠️ **Early Development** — Etsume is in active development. APIs, features, and UI surfaces may change significantly between releases.
-
----
-
-## Extensions
-
-Etsume does not come with content sources built in — you install them through **extension repos**.
-Etsume is fully compatible with standard community extension repos. To get started:
-
-1. Open Etsume → **More** → **Settings** → **Browse**
-2. Tap **Manga Extension Repos** or **Anime Extension Repos**
-3. Tap **Add** and paste a repo URL
-4. Restart the app — new sources will appear in the Browse tab
-
-### Known Extension Repos
-
-> ⚠️ These are third-party community repos. Etsume does not host, control, or endorse any of them.
-
-**Manga:**
-- Keiyoushi
-- Yūzōnō
-- Kavita
-- Suwayomi
-
-**Anime:**
-- Yūzōnō
-- Secozzi
-- Claudemirovsky
-- hollow
-
-You can find more repos and setup guides on community wikis. Always use repos from sources you trust.
+> ⚠️ **Early Development** — APIs, features, and UI surfaces are actively changing between releases.
 
 ---
 
 ## Features
 
-- 📚 **Manga reader** — multiple viewer modes (left-to-right, right-to-left, vertical, webtoon)
+- 📚 **Manga reader** — left-to-right, right-to-left, vertical scroll, and continuous webtoon modes
 - 🎬 **Anime player** — hardware-accelerated playback via mpv and FFmpeg
-- 🔍 **Browse** — community extension sources for both manga and anime
+- 🔍 **Browse** — community extension sources for manga and anime
 - 📥 **Downloads** — offline reading and viewing support
-- 🔖 **Library** — manage your collection with custom categories
-- 💬 **Comments** *(coming soon)* — discussion surfaces per entry
+- 🔖 **Library** — custom categories and collection management
+- 💬 **Comments** *(coming soon)* — per-title discussion surfaces
 
 ---
 
-## Roadmap
+## Extensions
 
-- 🖥️ **Desktop app** — coming soon
-- 💬 **Comments** — in-app discussion surfaces per title
-- 🎨 **Custom reader/player UI** — redesigned floating bars and controls
-- 👤 **Profile & tracking redesign** — unified tracking dashboard
+Etsume does not bundle any content sources. You install them through **extension repos** that you choose and trust.
+
+**Setup:**
+1. Open Etsume → **More** → **Settings** → **Browse**
+2. Tap **Manga Extension Repos** or **Anime Extension Repos**
+3. Tap **Add** and paste a repo URL
+4. Restart the app — new sources appear in the Browse tab
+
+### Known Community Repos
+
+> ⚠️ These are third-party repos. Etsume does not host, control, or endorse any of them.
+
+| Type | Repos |
+|------|-------|
+| **Manga** | Keiyoushi, Yūzōnō, Kavita, Suwayomi |
+| **Anime** | Yūzōnō, Secozzi, Claudemirovsky, hollow |
+
+More repos and setup guides can be found on community wikis.
+
+---
 
 ## Download
 
@@ -76,13 +64,22 @@ Get the latest APK from [**GitHub Releases**](https://github.com/harshtries-code
 
 | Variant | Description |
 |---------|-------------|
-| `etsume-arm64-v8a-*.apk` | Most modern Android phones (recommended) |
+| `etsume-arm64-v8a-*.apk` | Most modern Android phones — **recommended** |
 | `etsume-armeabi-v7a-*.apk` | Older 32-bit ARM devices |
-| `etsume-x86_64-*.apk` | x86_64 emulators / Chromebooks |
+| `etsume-x86_64-*.apk` | x86_64 emulators and Chromebooks |
 | `etsume-x86-*.apk` | Legacy x86 devices |
 | `etsume-universal-*.apk` | All architectures in one file (larger size) |
 
-**Minimum Android version:** Android 8.0 (API 26)
+**Minimum:** Android 8.0 (API 26)
+
+---
+
+## Roadmap
+
+- 🖥️ **Desktop app** — cross-platform client coming soon
+- 💬 **In-app comments** — native discussion surfaces per title
+- 🎨 **Custom reader/player UI** — redesigned floating controls and bars
+- 👤 **Tracking redesign** — unified profile and media tracking dashboard
 
 ---
 
@@ -90,25 +87,24 @@ Get the latest APK from [**GitHub Releases**](https://github.com/harshtries-code
 
 ### Requirements
 
-- **Android Studio** Hedgehog (2023.1.1) or newer  
-  *or* a working Android SDK + **JDK 17** environment
+- **Android Studio** Hedgehog (2023.1.1) or newer, or a working Android SDK with **JDK 17**
 - A device or emulator running Android 8.0+
 
-### Quick start
+### Quick Start
 
 ```powershell
 # Debug build
 .\gradlew.bat :app:assembleDebug
 
-# Install debug build on a connected device
+# Install directly to connected device
 .\gradlew.bat :app:installDebug
 ```
 
-Debug APK output:
+**Debug APK output:**
 - `app/build/outputs/apk/debug/app-arm64-v8a-debug.apk`
 - `app/build/outputs/apk/debug/app-universal-debug.apk`
 
-### Signed release build (optional)
+### Signed Release Build (optional)
 
 1. Copy `keystore.properties.example` → `keystore.properties`
 2. Fill in your keystore path and credentials
@@ -117,7 +113,7 @@ Debug APK output:
    .\gradlew.bat :app:assembleRelease
    ```
 
-The app builds and installs fine without a keystore (it just won't be signed for release distribution).
+The app builds and installs without a keystore — it just won't be signed for release distribution.
 
 ---
 
@@ -131,7 +127,7 @@ etsume/
 │   └── archive/
 ├── data/                   # Data layer (repositories, database, preferences)
 ├── domain/                 # Domain layer (use cases, models, interactors)
-├── presentation-core/      # Shared Jetpack Compose UI components
+├── presentation-core/      # Shared UI components
 ├── presentation-widget/    # Android home screen widget
 ├── source-api/             # Extension source API definitions
 ├── source-local/           # Local file source implementation
@@ -143,8 +139,7 @@ etsume/
 
 ## Contributing
 
-Contributions are welcome and appreciated!  
-Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** before submitting anything.
+Contributions are welcome. Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** before submitting.
 
 - 🐛 **Bug reports** → [Open an issue](https://github.com/harshtries-code/etsume/issues/new?template=bug_report.md)
 - 💡 **Feature requests** → [Start a discussion](https://github.com/harshtries-code/etsume/discussions)
@@ -152,17 +147,15 @@ Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** before submitting anything.
 
 ---
 
-## Project Notes
+## Notes
 
-- Etsume does **not** bundle, host, or distribute any media content.
-- Source, tracker, reader, and player behavior depends entirely on the extensions and integrations you configure inside the app.
-- Etsume inherits the Apache 2.0 license from its upstream projects and intentionally removes upstream community and release metadata that no longer represents Etsume directly.
+- Etsume does not bundle, host, or distribute any media content.
+- Reader, player, and tracker behavior depend entirely on the extensions and integrations you configure.
+- Etsume inherits the Apache 2.0 license from its upstream projects and intentionally removes upstream community metadata that no longer represents Etsume directly.
 
 ---
 
 ## Credits
-
-Etsume stands on the shoulders of:
 
 | Project | Role |
 |---------|------|
