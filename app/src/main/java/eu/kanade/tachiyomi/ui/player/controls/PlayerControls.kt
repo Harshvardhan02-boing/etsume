@@ -1,0 +1,462 @@
+/*
+ * Copyright 2024 Abdallah Mehiz
+ * https://github.com/abdallahmehiz/mpvKt
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package eu.kanade.tachiyomi.ui.player.controls
+
+import android.content.res.Configuration.ORIENTATION_LANDSCAPE
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalRippleConfiguration
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import eu.kanade.presentation.more.settings.screen.player.custombutton.getButtons
+import eu.kanade.presentation.theme.playerRippleConfiguration
+import eu.kanade.tachiyomi.ui.player.Dialogs
+import eu.kanade.tachiyomi.ui.player.Panels
+import eu.kanade.tachiyomi.ui.player.PlayerActivity
+import eu.kanade.tachiyomi.ui.player.PlayerUpdates
+import eu.kanade.tachiyomi.ui.player.PlayerViewModel
+import eu.kanade.tachiyomi.ui.player.Sheets
+import eu.kanade.tachiyomi.ui.player.VideoAspect
+import eu.kanade.tachiyomi.ui.player.controls.components.BrightnessOverlay
+import eu.kanade.tachiyomi.ui.player.controls.components.BrightnessSlider
+import eu.kanade.tachiyomi.ui.player.controls.components.ControlsButton
+import eu.kanade.tachiyomi.ui.player.controls.components.TextPlayerUpdate
+import eu.kanade.tachiyomi.ui.player.controls.components.VolumeSlider
+import eu.kanade.tachiyomi.ui.player.controls.components.sheets.toFixed
+import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
+import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
+import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
+import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
+import `is`.xyz.mpv.MPVLib
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.update
+import tachiyomi.presentation.core.components.material.padding
+import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.util.collectAsState
+import tachiyomi.source.local.entries.anime.LocalAnimeSource
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
+
+@Suppress("CompositionLocalAllowlist")
+val LocalPlayerButtonsClickEvent = staticCompositionLocalOf { {} }
+
+@Composable
+fun PlayerControls(
+    viewModel: PlayerViewModel,
+    onBackPress: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val spacing = MaterialTheme.padding
+    val playerPreferences = remember { Injekt.get<PlayerPreferences>() }
+    val gesturePreferences = remember { Injekt.get<GesturePreferences>() }
+    val audioPreferences = remember { Injekt.get<AudioPreferences>() }
+    val subtitlePreferences = remember { Injekt.get<SubtitlePreferences>() }
+    val interactionSource = remember { MutableInteractionSource() }
+    val configuration = LocalConfiguration.current
+    val isLandscapePlayer = configuration.orientation == ORIENTATION_LANDSCAPE
+
+    val controlsShown by viewModel.controlsShown.collectAsState()
+    val areControlsLocked by viewModel.areControlsLocked.collectAsState()
+    val seekBarShown by viewModel.seekBarShown.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val isLoadingEpisode by viewModel.isLoadingEpisode.collectAsState()
+    val duration by viewModel.duration.collectAsState()
+    val position by viewModel.pos.collectAsState()
+    val paused by viewModel.paused.collectAsState()
+    val gestureSeekAmount by viewModel.gestureSeekAmount.collectAsState()
+    val doubleTapSeekAmount by viewModel.doubleTapSeekAmount.collectAsState()
+    val seekText by viewModel.seekText.collectAsState()
+    val currentChapter by viewModel.currentChapter.collectAsState()
+    val chapters by viewModel.chapters.collectAsState()
+    val currentBrightness by viewModel.currentBrightness.collectAsState()
+    val currentPlayerUpdate by viewModel.playerUpdate.collectAsState()
+
+    val playerTimeToDisappear by playerPreferences.playerTimeToDisappear().collectAsState()
+    var isSeeking by remember { mutableStateOf(false) }
+    var resetControls by remember { mutableStateOf(true) }
+
+    val customButtons by viewModel.customButtons.collectAsState()
+
+    LaunchedEffect(
+        controlsShown,
+        paused,
+        isSeeking,
+        resetControls,
+    ) {
+        if (controlsShown && !paused && !isSeeking) {
+            delay(playerTimeToDisappear.toLong())
+            viewModel.hideControls()
+        }
+    }
+
+    val transparentOverlay by animateFloatAsState(
+        if (controlsShown && !areControlsLocked) .7f else 0f,
+        animationSpec = playerControlsExitAnimationSpec(),
+        label = "controls_transparent_overlay",
+    )
+
+    GestureHandler(
+        viewModel = viewModel,
+        interactionSource = interactionSource,
+    )
+    DoubleTapToSeekOvals(doubleTapSeekAmount, seekText, interactionSource)
+
+    val hasPreviousEpisode by viewModel.hasPreviousEpisode.collectAsState()
+    val hasNextEpisode by viewModel.hasNextEpisode.collectAsState()
+    val isBrightnessSliderShown by viewModel.isBrightnessSliderShown.collectAsState()
+    val isVolumeSliderShown by viewModel.isVolumeSliderShown.collectAsState()
+    val brightness by viewModel.currentBrightness.collectAsState()
+    val volume by viewModel.currentVolume.collectAsState()
+    val mpvVolume by viewModel.currentMPVVolume.collectAsState()
+    val swapVolumeAndBrightness by gesturePreferences.swapVolumeBrightness().collectAsState()
+    val reduceMotion by playerPreferences.reduceMotion().collectAsState()
+    val aspectRatio by playerPreferences.aspectState().collectAsState()
+
+    LaunchedEffect(volume, mpvVolume, isVolumeSliderShown) {
+        delay(2000)
+        if (isVolumeSliderShown) viewModel.isVolumeSliderShown.update { false }
+    }
+    LaunchedEffect(brightness, isBrightnessSliderShown) {
+        delay(2000)
+        if (isBrightnessSliderShown) viewModel.isBrightnessSliderShown.update { false }
+    }
+    LaunchedEffect(currentPlayerUpdate, aspectRatio) {
+        if (currentPlayerUpdate is PlayerUpdates.DoubleSpeed || currentPlayerUpdate is PlayerUpdates.None) {
+            return@LaunchedEffect
+        }
+        delay(2000)
+        viewModel.playerUpdate.update { PlayerUpdates.None }
+    }
+
+    CompositionLocalProvider(
+        LocalRippleConfiguration provides playerRippleConfiguration,
+        LocalPlayerButtonsClickEvent provides { resetControls = !resetControls },
+        LocalContentColor provides Color.White,
+    ) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        if (isLandscapePlayer) {
+                            listOf(
+                                Color.Black.copy(alpha = transparentOverlay.coerceAtLeast(0.12f)),
+                                Color.Transparent,
+                                Color.Transparent,
+                                Color.Black.copy(alpha = transparentOverlay.coerceAtLeast(0.20f)),
+                            )
+                        } else {
+                            listOf(
+                                Color.Black.copy(alpha = transparentOverlay.coerceAtLeast(0.10f)),
+                                Color.Transparent,
+                                Color.Transparent,
+                                Color.Transparent,
+                            )
+                        },
+                    ),
+                )
+                .padding(horizontal = if (isLandscapePlayer) 12.dp else 0.dp),
+        ) {
+            AnimatedVisibility(
+                isBrightnessSliderShown,
+                enter = if (!reduceMotion) {
+                    slideInHorizontally(playerControlsEnterAnimationSpec()) {
+                        if (swapVolumeAndBrightness) -it else it
+                    } + fadeIn(playerControlsEnterAnimationSpec())
+                } else {
+                    fadeIn(playerControlsEnterAnimationSpec())
+                },
+                exit = if (!reduceMotion) {
+                    slideOutHorizontally(playerControlsExitAnimationSpec()) {
+                        if (swapVolumeAndBrightness) -it else it
+                    } + fadeOut(playerControlsExitAnimationSpec())
+                } else {
+                    fadeOut(playerControlsExitAnimationSpec())
+                },
+                modifier = Modifier.align(if (swapVolumeAndBrightness) Alignment.CenterStart else Alignment.CenterEnd),
+            ) {
+                BrightnessSlider(
+                    brightness = brightness,
+                    positiveRange = 0f..1f,
+                    negativeRange = 0f..0.75f,
+                )
+            }
+
+            AnimatedVisibility(
+                isVolumeSliderShown,
+                enter = if (!reduceMotion) {
+                    slideInHorizontally(playerControlsEnterAnimationSpec()) {
+                        if (swapVolumeAndBrightness) it else -it
+                    } + fadeIn(playerControlsEnterAnimationSpec())
+                } else {
+                    fadeIn(playerControlsEnterAnimationSpec())
+                },
+                exit = if (!reduceMotion) {
+                    slideOutHorizontally(playerControlsExitAnimationSpec()) {
+                        if (swapVolumeAndBrightness) it else -it
+                    } + fadeOut(playerControlsExitAnimationSpec())
+                } else {
+                    fadeOut(playerControlsExitAnimationSpec())
+                },
+                modifier = Modifier.align(if (swapVolumeAndBrightness) Alignment.CenterEnd else Alignment.CenterStart),
+            ) {
+                val boostCap by audioPreferences.volumeBoostCap().collectAsState()
+                val displayVolumeAsPercentage by playerPreferences.displayVolPer().collectAsState()
+                VolumeSlider(
+                    volume = volume,
+                    mpvVolume = mpvVolume,
+                    range = 0..viewModel.maxVolume,
+                    boostRange = if (boostCap > 0) 0..audioPreferences.volumeBoostCap().get() else null,
+                    displayAsPercentage = displayVolumeAsPercentage,
+                )
+            }
+
+            AnimatedVisibility(
+                currentPlayerUpdate !is PlayerUpdates.None,
+                enter = fadeIn(playerControlsEnterAnimationSpec()),
+                exit = fadeOut(playerControlsExitAnimationSpec()),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = if (isLandscapePlayer) 88.dp else 76.dp),
+            ) {
+                when (currentPlayerUpdate) {
+                    is PlayerUpdates.AspectRatio -> TextPlayerUpdate(stringResource(aspectRatio.titleRes))
+                    is PlayerUpdates.ShowText -> TextPlayerUpdate((currentPlayerUpdate as PlayerUpdates.ShowText).value)
+                    is PlayerUpdates.ShowTextResource -> TextPlayerUpdate(
+                        stringResource((currentPlayerUpdate as PlayerUpdates.ShowTextResource).textResource),
+                    )
+                    else -> Unit
+                }
+            }
+
+            AnimatedVisibility(
+                controlsShown && areControlsLocked,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = spacing.large),
+            ) {
+                ControlsButton(
+                    Icons.Filled.Lock,
+                    onClick = { viewModel.unlockControls() },
+                )
+            }
+
+            AnimatedVisibility(
+                visible = gestureSeekAmount != null || isLoading || isLoadingEpisode,
+                enter = fadeIn(playerControlsEnterAnimationSpec()),
+                exit = fadeOut(playerControlsExitAnimationSpec()),
+                modifier = Modifier.align(Alignment.Center),
+            ) {
+                val showLoadingCircle by playerPreferences.showLoadingCircle().collectAsState()
+                MiddlePlayerControls(
+                    hasPrevious = hasPreviousEpisode,
+                    onSkipPrevious = { viewModel.changeEpisode(true) },
+                    hasNext = hasNextEpisode,
+                    onSkipNext = { viewModel.changeEpisode(false) },
+                    isLoading = isLoading,
+                    isLoadingEpisode = isLoadingEpisode,
+                    controlsShown = false,
+                    areControlsLocked = areControlsLocked,
+                    showLoadingCircle = showLoadingCircle,
+                    paused = paused,
+                    gestureSeekAmount = gestureSeekAmount,
+                    onPlayPauseClick = viewModel::pauseUnpause,
+                    enter = fadeIn(playerControlsEnterAnimationSpec()),
+                    exit = fadeOut(playerControlsExitAnimationSpec()),
+                )
+            }
+
+            if (!areControlsLocked) {
+                if (isLandscapePlayer) {
+                    EtsumeLandscapePlayerChrome(
+                        viewModel = viewModel,
+                        onBackPress = onBackPress,
+                        seekBarShown = seekBarShown,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    EtsumePortraitPlayerChrome(
+                        viewModel = viewModel,
+                        onBackPress = onBackPress,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+        }
+
+        val sheetShown by viewModel.sheetShown.collectAsState()
+        val dismissSheet by viewModel.dismissSheet.collectAsState()
+        val subtitles by viewModel.subtitleTracks.collectAsState()
+        val selectedSubtitles by viewModel.selectedSubtitles.collectAsState()
+        val audioTracks by viewModel.audioTracks.collectAsState()
+        val selectedAudio by viewModel.selectedAudio.collectAsState()
+        val isLoadingHosters by viewModel.isLoadingHosters.collectAsState()
+        val hosterState by viewModel.hosterState.collectAsState()
+        val expandedState by viewModel.hosterExpandedList.collectAsState()
+        val selectedHosterVideoIndex by viewModel.selectedHosterVideoIndex.collectAsState()
+        val decoder by viewModel.currentDecoder.collectAsState()
+        val speed by viewModel.playbackSpeed.collectAsState()
+        val sleepTimerTimeRemaining by viewModel.remainingTime.collectAsState()
+        val showSubtitles by subtitlePreferences.screenshotSubtitles().collectAsState()
+        val currentSource by viewModel.currentSource.collectAsState()
+        val currentEpisode by viewModel.currentEpisode.collectAsState()
+        val currentAnime by viewModel.currentAnime.collectAsState()
+        val showFailedHosters by playerPreferences.showFailedHosters().collectAsState()
+        val emptyHosters by playerPreferences.showEmptyHosters().collectAsState()
+        val activity = LocalContext.current as PlayerActivity
+
+        PlayerSheets(
+            sheetShown = sheetShown,
+            subtitles = subtitles.toImmutableList(),
+            selectedSubtitles = selectedSubtitles.toList().toImmutableList(),
+            onAddSubtitle = viewModel::addSubtitle,
+            onSelectSubtitle = viewModel::selectSub,
+            audioTracks = audioTracks.toImmutableList(),
+            selectedAudio = selectedAudio,
+            onAddAudio = viewModel::addAudio,
+            onSelectAudio = viewModel::selectAudio,
+            isLoadingHosters = isLoadingHosters,
+            hosterState = hosterState,
+            expandedState = expandedState,
+            selectedVideoIndex = selectedHosterVideoIndex,
+            onClickHoster = viewModel::onHosterClicked,
+            onClickVideo = viewModel::onVideoClicked,
+            displayHosters = Pair(showFailedHosters, emptyHosters),
+            chapter = currentChapter?.toSegment(),
+            chapters = chapters.map { it.toSegment() }.toImmutableList(),
+            onSeekToChapter = {
+                viewModel.selectChapter(it)
+                viewModel.dismissSheet()
+                viewModel.unpause()
+            },
+            commentDraftKey = "player_${currentAnime?.id ?: 0L}_${currentEpisode?.id ?: 0L}",
+            decoder = decoder,
+            onUpdateDecoder = viewModel::updateDecoder,
+            speed = speed,
+            onSpeedChange = { MPVLib.setPropertyDouble("speed", it.toFixed(2).toDouble()) },
+            sleepTimerTimeRemaining = sleepTimerTimeRemaining,
+            onStartSleepTimer = viewModel::startTimer,
+            buttons = customButtons.getButtons().toImmutableList(),
+            onOpenComments = { viewModel.showSheet(Sheets.Comments) },
+            onOpenSubtitles = { viewModel.showSheet(Sheets.SubtitleTracks) },
+            onOpenAudioTracks = { viewModel.showSheet(Sheets.AudioTracks) },
+            onOpenQualityTracks = { viewModel.showSheet(Sheets.QualityTracks) },
+            onOpenEpisodeList = {
+                viewModel.showSheet(Sheets.None)
+                viewModel.showEpisodeListDialog()
+            },
+            onEnterPip = if (activity.isPipSupportedAndEnabled) {
+                {
+                    viewModel.showSheet(Sheets.None)
+                    activity.enterPipIfPossible()
+                }
+            } else {
+                null
+            },
+            isLocalSource = currentSource?.id == LocalAnimeSource.ID,
+            showSubtitles = showSubtitles,
+            onToggleShowSubtitles = { subtitlePreferences.screenshotSubtitles().set(it) },
+            cachePath = viewModel.cachePath,
+            onSetAsArt = viewModel::setAsArt,
+            onShare = { viewModel.shareImage(it, viewModel.pos.value.toInt()) },
+            onSave = { viewModel.saveImage(it, viewModel.pos.value.toInt()) },
+            takeScreenshot = viewModel::takeScreenshot,
+            onDismissScreenshot = {
+                viewModel.showSheet(Sheets.None)
+                viewModel.unpause()
+            },
+            onOpenPanel = viewModel::showPanel,
+            onDismissRequest = { viewModel.showSheet(Sheets.None) },
+            dismissSheet = dismissSheet,
+        )
+
+        val panel by viewModel.panelShown.collectAsState()
+        PlayerPanels(
+            panelShown = panel,
+            onDismissRequest = { viewModel.showPanel(Panels.None) },
+        )
+
+        val dialog by viewModel.dialogShown.collectAsState()
+        val anime by viewModel.currentAnime.collectAsState()
+        val playlist by viewModel.currentPlaylist.collectAsState()
+
+        PlayerDialogs(
+            dialogShown = dialog,
+            episodeDisplayMode = anime?.displayMode,
+            episodeList = playlist,
+            currentEpisodeIndex = viewModel.getCurrentEpisodeIndex(),
+            dateRelativeTime = viewModel.relativeTime,
+            dateFormat = viewModel.dateFormat,
+            onBookmarkClicked = viewModel::bookmarkEpisode,
+            onFillermarkClicked = viewModel::fillermarkEpisode,
+            onEpisodeClicked = {
+                viewModel.showDialog(Dialogs.None)
+                activity.changeEpisode(it)
+            },
+            onDismissRequest = { viewModel.showDialog(Dialogs.None) },
+        )
+
+        BrightnessOverlay(
+            brightness = currentBrightness,
+        )
+    }
+}
+
+fun <T> playerControlsExitAnimationSpec(): FiniteAnimationSpec<T> = tween(
+    durationMillis = 300,
+    easing = FastOutSlowInEasing,
+)
+
+fun <T> playerControlsEnterAnimationSpec(): FiniteAnimationSpec<T> = tween(
+    durationMillis = 100,
+    easing = LinearOutSlowInEasing,
+)
